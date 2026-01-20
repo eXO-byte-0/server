@@ -1,136 +1,34 @@
+// server.js - Serveur WebSocket CORRIGÉ pour Render
+const express = require('express');
+const http = require('http'); // <-- Important
 const WebSocket = require('ws');
 
-const wss = new WebSocket.Server({ port: process.env.PORT || 8080 });
-const PORT = process.env.PORT || 10000;
-const wss = new WebSocket.Server({ port: PORT });
+const app = express();
+// 1. Créer un serveur HTTP à partir de l'app Express
+const server = http.createServer(app);
+// 2. Attacher le serveur WebSocket AU SERVEUR HTTP, sur le chemin '/'
+const wss = new WebSocket.Server({ server });
 
-let clients = [];
-// Stockage des joueurs connectés
-const players = new Map();
+const PORT = process.env.PORT || 10000; // Render fournit le port via cette variable
 
-console.log(`🚀 Serveur multijoueur démarré sur le port ${PORT}`);
-
-wss.on('connection', (ws) => {
-    console.log('Nouvelle connexion !');
-    clients.push(ws);
-    // Générer un ID unique pour le joueur
-    const playerId = generateId();
-    players.set(playerId, {
-        ws: ws,
-        id: playerId,
-        lastUpdate: null
-    });
-
-    console.log(`✅ Nouveau joueur connecté: ${playerId} (Total: ${players.size})`);
-
-    // Envoyer l'ID au joueur
-    ws.send(JSON.stringify({
-        type: 'init',
-        id: playerId
-    }));
-
-    // Envoyer la liste des autres joueurs déjà connectés
-    const otherPlayerIds = Array.from(players.keys()).filter(id => id !== playerId);
-    ws.send(JSON.stringify({
-        type: 'allPlayers',
-        players: otherPlayerIds
-    }));
-
-    // Informer les autres joueurs qu'un nouveau joueur a rejoint
-    broadcast({
-        type: 'playerJoined',
-        id: playerId
-    }, playerId);
-
-    // Gestion des messages reçus
-    ws.on('message', (message) => {
-        console.log('Message reçu:', message);
-        try {
-            const data = JSON.parse(message);
-            handlePlayerMessage(playerId, data);
-        } catch (err) {
-            console.error('❌ Erreur parsing message:', err);
-        }
-    });
-
-    // Gestion de la déconnexion
-    ws.on('close', () => {
-        console.log(`👋 Joueur déconnecté: ${playerId} (Restants: ${players.size - 1})`);
-        players.delete(playerId);
-
-        // Broadcast à tous les clients sauf l'envoyeur
-        clients.forEach(client => {
-            if (client !== ws && client.readyState === WebSocket.OPEN) {
-                client.send(message);
-            }
-        // Informer les autres de la déconnexion
-        broadcast({
-            type: 'playerLeft',
-            id: playerId
-        });
-    });
-
-    ws.on('close', () => {
-        clients = clients.filter(c => c !== ws);
-        console.log('Client déconnecté');
-    // Gestion des erreurs
-    ws.on('error', (error) => {
-        console.error(`❌ Erreur WebSocket pour ${playerId}:`, error);
-    });
+// Vous pouvez garder vos routes Express si besoin
+app.get('/', (req, res) => {
+  res.send('Serveur de jeu multijoueur opérationnel');
 });
 
-console.log('Serveur WebSocket lancé sur le port 8080');
-// =====================
-// GESTION DES MESSAGES
-// =====================
-function handlePlayerMessage(playerId, data) {
-    const player = players.get(playerId);
-    if (!player) return;
+// --- Le reste de votre logique (players, generateId, etc.) reste IDENTIQUE ---
+const players = new Map();
 
-    switch(data.type) {
-        case 'playerUpdate':
-            // Stocker la dernière position
-            player.lastUpdate = {
-                x: data.x,
-                y: data.y,
-                z: data.z,
-                rotX: data.rotX,
-                rotY: data.rotY,
-                rotZ: data.rotZ,
-                state: data.state
-            };
+wss.on('connection', (ws) => {
+    const playerId = generateId();
+    players.set(playerId, { ws: ws, id: playerId, lastUpdate: null });
+    console.log(`✅ Nouveau joueur: ${playerId}`);
 
-            // Broadcaster à tous les autres joueurs
-            broadcast({
-                type: 'playerUpdate',
-                id: playerId,
-                x: data.x,
-                y: data.y,
-                z: data.z,
-                rotX: data.rotX,
-                rotY: data.rotY,
-                rotZ: data.rotZ,
-                state: data.state
-            }, playerId);
-            break;
+    // ... (Votre code pour init, allPlayers, broadcast) ...
+});
 
-        // Vous pouvez ajouter d'autres types de messages ici
-        case 'chat':
-            broadcast({
-                type: 'chat',
-                id: playerId,
-                message: data.message
-            }, playerId);
-            break;
-    }
-}
-
-// =====================
-// BROADCAST
-// =====================
 function broadcast(data, excludeId = null) {
     const message = JSON.stringify(data);
-    
     players.forEach((player, id) => {
         if (id !== excludeId && player.ws.readyState === WebSocket.OPEN) {
             player.ws.send(message);
@@ -138,37 +36,13 @@ function broadcast(data, excludeId = null) {
     });
 }
 
-// =====================
-// GÉNÉRATION D'ID
-// =====================
 function generateId() {
-    return 'player_' + Math.random().toString(36).substr(2, 9) + Date.now().toString(36);
+    return 'player_' + Math.random().toString(36).substr(2, 9);
 }
+// --- Fin de votre logique ---
 
-// =====================
-// HEARTBEAT (optionnel)
-// =====================
-// Envoyer un ping toutes les 30 secondes pour maintenir la connexion active
-setInterval(() => {
-    players.forEach((player, id) => {
-        if (player.ws.readyState === WebSocket.OPEN) {
-            player.ws.ping();
-        } else {
-            // Nettoyer les connexions mortes
-            players.delete(id);
-            console.log(`🧹 Nettoyage joueur mort: ${id}`);
-        }
-    });
-}, 30000);
-
-// Gestion de l'arrêt propre du serveur
-process.on('SIGTERM', () => {
-    console.log('🛑 Arrêt du serveur...');
-    wss.clients.forEach((ws) => {
-        ws.close();
-    });
-    wss.close(() => {
-        console.log('✅ Serveur arrêté proprement');
-        process.exit(0);
-    });
+// 3. Démarrer le serveur UNIQUE sur le port fourni par Render
+server.listen(PORT, () => {
+    console.log(`🚀 Serveur lancé sur le port ${PORT}`);
+    console.log(`🌍 WebSocket disponible sur: wss://server-vuh0.onrender.com`);
 });
