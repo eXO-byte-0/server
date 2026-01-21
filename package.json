@@ -1,16 +1,28 @@
 {
-  "name": "armory-mp-server",
+  "name": "armory3d-multiplayer-server",
   "version": "1.0.0",
-  "description": "Serveur multijoueur pour Armory",
+  "description": "Serveur WebSocket pour jeu multijoueur Armory3D",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "dev": "nodemon server.js"
   },
+  "keywords": [
+    "websocket",
+    "multiplayer",
+    "armory3d",
+    "game-server"
+  ],
+  "author": "",
+  "license": "MIT",
   "dependencies": {
     "express": "^4.18.2",
-    "ws": "^8.16.0"
+    "ws": "^8.14.2"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
   },
   "engines": {
-    "node": ">=14.0.0"
+    "node": ">=18.0.0"
   }
 }
