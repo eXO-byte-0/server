@@ -49,18 +49,41 @@ app.get('/health', (req, res) => {
 io.on('connection', (socket) => {
     console.log(`🟢 Connexion: ${socket.id}`);
     
-    // CREATE
-    socket.on('create', () => {
-        console.log(`📝 CREATE de ${socket.id}`);
-        
-        // Donner un ID au client
-        socket.emit('register', {
-            id: socket.id,
-            players: players
-        });
-        
-        console.log(`📤 REGISTER envoyé à ${socket.id}`);
+ socket.on('create', () => {
+    console.log(`📝 CREATE de ${socket.id}`);
+    
+    // Donner un ID au client
+    socket.emit('register', {
+        id: socket.id,
+        players: players
     });
+    
+    console.log(`📤 REGISTER envoyé à ${socket.id}`);
+    
+    // ⭐⭐⭐ AJOUTE ÇA ⭐⭐⭐
+    // FAIS SPAWN LE JOUEUR AUTOMATIQUEMENT (comme Glitch)
+    const username = `Player_${playerCount + 1}`;
+    players[socket.id] = {
+        id: socket.id,
+        x: 0, y: 1, z: 0,
+        username: username
+    };
+    playerCount++;
+    
+    socket.emit('spawn', {
+        id: socket.id,
+        username: username,
+        x: 0, y: 1, z: 0
+    });
+    console.log(`🎮 SPAWN automatique pour ${socket.id}`);
+    
+    // Informe les autres
+    socket.broadcast.emit('playerJoined', {
+        id: socket.id,
+        username: username,
+        x: 0, y: 1, z: 0
+    });
+});
     
     // SPAWN
     socket.on('spawn', (data) => {
