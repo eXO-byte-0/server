@@ -333,72 +333,84 @@ io.on('connection', (socket) => {
         console.log(`✅ [REGISTER] Envoyé à ${playerId} | Total joueurs: ${playerCount}`);
     });
     
-    // ========================================
-    // EVENT: 'spawn' - Spawn du joueur dans le monde
-    // ========================================
-    socket.on('spawn', (data) => {
-        const playerId = data.id || socket.id;
-        const username = data.name || data.username || `Player_${playerCount}`;
+ // ========================================
+// EVENT: 'spawn' - VERSION CORRIGÉE
+// ========================================
+socket.on('spawn', (data) => {
+    const playerId = data.id || socket.id;
+    const username = data.name || data.username || `Player_${playerCount}`;
+    
+    console.log(`🎮 [SPAWN] Demande de spawn pour ${playerId} (${username})`);
+    
+    // CAS 1: Le joueur existe déjà (après 'create')
+    if (players[playerId]) {
+        // Met à jour le nom
+        players[playerId].username = username;
         
-        console.log(`🎮 [SPAWN] Demande de spawn pour ${playerId} (${username})`);
+        console.log(`📝 [SPAWN] Nom mis à jour: ${username}`);
         
-        // Si le joueur existe déjà (après 'create')
-        if (players[playerId]) {
-            // Met à jour le nom d'utilisateur
-            players[playerId].username = username;
-            
-            console.log(`📝 [SPAWN] Nom mis à jour: ${username}`);
-            
-            // 1️⃣ CRUCIAL: Envoie au nouveau joueur TOUS les joueurs existants
-            let existingPlayersCount = 0;
-            for (let id in players) {
-                if (id !== playerId && players[id].connected) {
-                    socket.emit('spawn', {
-                        id: id,
-                        username: players[id].username
-                    });
-                    existingPlayersCount++;
-                    console.log(`   ↳ Envoi du joueur existant ${id} (${players[id].username}) au nouveau joueur`);
-                }
+        // ✅ CRUCIAL: Envoie TOUS les joueurs existants au NOUVEAU joueur
+        for (let id in players) {
+            if (id !== playerId && players[id].connected) {
+                // Envoie UN SEUL événement 'playerJoined' (comme ton ancien serveur)
+                socket.emit('playerJoined', {
+                    id: id,
+                    username: players[id].username,
+                    x: players[id].x,
+                    y: players[id].y,
+                    z: players[id].z
+                });
+                console.log(`   📤 Envoyé joueur existant ${id} au nouveau ${playerId}`);
             }
-            
-            console.log(`📤 [SPAWN] ${existingPlayersCount} joueur(s) existant(s) envoyé(s) à ${playerId}`);
-            
-            // 2️⃣ CRUCIAL: Broadcast le nouveau joueur à TOUS les autres
-            socket.broadcast.emit('spawn', {
-                id: playerId,
-                username: username
-            });
-            
-            console.log(`📢 [SPAWN] Broadcast du nouveau joueur ${username} aux autres`);
-            
-            // 3️⃣ Met à jour la liste pour le dashboard
-            io.emit('playerListUpdate', players);
-            
-            console.log(`✅ [SPAWN] ${username} spawné avec succès`);
-        } else {
-            // Cas où 'spawn' est appelé sans 'create' (fallback)
-            console.warn(`⚠️ [SPAWN] Joueur ${playerId} introuvable, création automatique`);
-            
-            players[playerId] = {
-                id: playerId,
-                x: 0,
-                y: 1,
-                z: 0,
-                username: username,
-                connected: true,
-                joinedAt: new Date().toISOString()
-            };
-            
-            playerCount++;
-            
-            socket.emit('register', { id: playerId, players: players });
-            socket.broadcast.emit('spawn', { id: playerId, username: username });
-            
-            io.emit('playerCountUpdate', playerCount);
-            io.emit('playerListUpdate', players);
         }
-    });
+        
+        // ✅ CRUCIAL: Annonce le NOUVEAU joueur à TOUS les autres
+        socket.broadcast.emit('playerJoined', {
+            id: playerId,
+            username: username,
+            x: players[playerId].x,
+            y: players[playerId].y,
+            z: players[playerId].z
+        });
+        
+        console.log(`📢 [SPAWN] ${username} annoncé aux autres joueurs`);
+        
+    } else {
+        // CAS 2: Le joueur n'existe pas encore (fallback)
+        console.warn(`⚠️ [SPAWN] Joueur ${playerId} introuvable, création auto`);
+        
+        players[playerId] = {
+            id: playerId,
+            x: 0,
+            y: 1,
+            z: 0,
+            username: username,
+            connected: true,
+            joinedAt: new Date().toISOString()
+        };
+        
+        playerCount++;
+        
+        // Envoie l'ID au client (register)
+        socket.emit('register', { 
+            id: playerId, 
+            players: players 
+        });
+        
+        // Annonce aux autres
+        socket.broadcast.emit('playerJoined', {
+            id: playerId,
+            username: username,
+            x: 0,
+            y: 1,
+            z: 0
+        });
+    }
+    
+    // Met à jour la liste
+    io.emit('playerCountUpdate', playerCount);
+    io.emit('playerListUpdate', players);
+});
     
     // ========================================
     // EVENT: 'transform' - Position + Rotation
