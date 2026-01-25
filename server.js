@@ -1,6 +1,5 @@
 // ============================================
-// SERVEUR MULTI-JOUEUR PLAYCANVAS - VERSION CORRIGÉE
-// J2 VOIT J1 ✅
+// SERVEUR MULTI-JOUEUR PLAYCANVAS - VERSION FINALE
 // ============================================
 
 const express = require('express');
@@ -54,19 +53,19 @@ app.get('/health', (req, res) => {
 });
 
 // ============================================
-// SOCKET.IO - CORRIGÉ POUR J2 VOIT J1
+// SOCKET.IO - VERSION SIMPLIFIÉE
 // ============================================
 
 io.on('connection', (socket) => {
     console.log(`🟢 Connexion: ${socket.id}`);
     
     // ========================================
-    // CREATE - Quand client clique "Connect"
+    // CREATE - Version simplifiée
     // ========================================
     socket.on('create', () => {
         console.log(`📝 CREATE de ${socket.id}`);
         
-        // Créer le joueur
+        // 1. Créer le joueur dans la mémoire serveur
         const username = `Player_${playerCount + 1}`;
         
         players[socket.id] = {
@@ -82,17 +81,18 @@ io.on('connection', (socket) => {
         
         console.log(`👤 Joueur créé: ${username} (${socket.id})`);
         
-        // 1️⃣ ENVOYER REGISTER AU CLIENT
+        // 2. ENVOYER TOUS les joueurs existants AU NOUVEAU CLIENT
+        // D'abord, envoyer la liste complète via 'register'
         socket.emit('register', {
             id: socket.id,
             players: players
         });
         
-        // ⭐⭐⭐ CORRECTION CRUCIALE ⭐⭐⭐
-        // 2️⃣ ENVOYER TOUS LES JOUEURS EXISTANTS AU NOUVEAU JOUEUR
-        let existingCount = 0;
+        console.log(`📤 REGISTER envoyé à ${socket.id}`);
+        
+        // 3. POUR CHAQUE joueur existant, envoyer un 'playerJoined' au nouveau
         for (let existingId in players) {
-            if (existingId !== socket.id && players[existingId].connected) {
+            if (existingId !== socket.id) {
                 socket.emit('playerJoined', {
                     id: existingId,
                     username: players[existingId].username,
@@ -100,22 +100,11 @@ io.on('connection', (socket) => {
                     y: players[existingId].y,
                     z: players[existingId].z
                 });
-                existingCount++;
-                console.log(`   📤 Envoyé ${players[existingId].username} (${existingId}) au nouveau joueur`);
+                console.log(`   → Envoyé ${players[existingId].username} à ${socket.id}`);
             }
         }
-        console.log(`📊 ${existingCount} joueur(s) existant(s) envoyé(s) à ${socket.id}`);
         
-        // 3️⃣ SPAWN LE JOUEUR POUR LUI-MÊME
-        socket.emit('spawn', {
-            id: socket.id,
-            username: username,
-            x: players[socket.id].x,
-            y: players[socket.id].y,
-            z: players[socket.id].z
-        });
-        
-        // 4️⃣ ANNONCER LE NOUVEAU JOUEUR AUX AUTRES
+        // 4. Annoncer le nouveau joueur à TOUS les autres
         socket.broadcast.emit('playerJoined', {
             id: socket.id,
             username: username,
@@ -124,49 +113,10 @@ io.on('connection', (socket) => {
             z: players[socket.id].z
         });
         
-        console.log(`📢 ${username} annoncé aux autres joueurs`);
-        
-        // 5️⃣ METTRE À JOUR LE COMPTEUR
+        // 5. Mettre à jour le compteur
         io.emit('playerCountUpdate', playerCount);
         
         console.log(`✅ ${username} prêt | Total: ${playerCount}`);
-    });
-    
-    // ========================================
-    // SPAWN - Quand client confirme (optionnel)
-    // ========================================
-    socket.on('spawn', (data) => {
-        const playerId = data.id || socket.id;
-        const username = data.name || data.username || players[playerId]?.username || `Player`;
-        
-        console.log(`🎮 SPAWN reçu de ${playerId} (${username})`);
-        
-        // Si le joueur n'existe pas (fallback)
-        if (!players[playerId]) {
-            players[playerId] = {
-                id: playerId,
-                x: data.x || 0,
-                y: data.y || 1,
-                z: data.z || 0,
-                username: username,
-                connected: true
-            };
-            playerCount++;
-        }
-        
-        // Mettre à jour le nom
-        players[playerId].username = username;
-        
-        // Confirmer au client
-        socket.emit('spawn', {
-            id: playerId,
-            username: username,
-            x: players[playerId].x,
-            y: players[playerId].y,
-            z: players[playerId].z
-        });
-        
-        console.log(`✅ ${username} spawn confirmé`);
     });
     
     // ========================================
@@ -185,14 +135,11 @@ io.on('connection', (socket) => {
                 pos: data.pos,
                 rot: data.rot
             });
-            
-            // Log (optionnel)
-            // console.log(`📍 ${players[data.id].username} → (${data.pos.x.toFixed(1)}, ${data.pos.y.toFixed(1)}, ${data.pos.z.toFixed(1)})`);
         }
     });
     
     // ========================================
-    // ANIM - Animation du joueur
+    // ANIM - Animation
     // ========================================
     socket.on('anim', (data) => {
         if (players[data.id]) {
@@ -251,8 +198,7 @@ server.listen(PORT, '0.0.0.0', () => {
     console.log(`
 ╔══════════════════════════════════════════╗
 ║                                          ║
-║   🚀 SERVEUR PLAYCANVAS - CORRIGÉ       ║
-║   ✅ J2 VOIT J1                          ║
+║   🚀 SERVEUR PLAYCANVAS - SIMPLIFIÉ     ║
 ║                                          ║
 ╠══════════════════════════════════════════╣
 ║                                          ║
@@ -261,15 +207,4 @@ server.listen(PORT, '0.0.0.0', () => {
 ║                                          ║
 ╚══════════════════════════════════════════╝
     `);
-    
-    console.log(`🎮 En attente de connexions...`);
-});
-
-// Gestion des erreurs
-process.on('uncaughtException', (err) => {
-    console.error('❌ Erreur:', err.message);
-});
-
-process.on('unhandledRejection', (reason) => {
-    console.error('❌ Promesse rejetée:', reason);
 });
