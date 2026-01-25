@@ -348,6 +348,18 @@ socket.on('spawn', (data) => {
         players[playerId].username = username;
         
         console.log(`📝 [SPAWN] Nom mis à jour: ${username}`);
+
+         socket.emit('spawn', {
+        id: playerId,
+        username: username
+    });
+    console.log(`👤 [SPAWN] Joueur ${username} spawné pour lui-même`);
+    
+    // 2. Ensuite, fais spawn ce joueur pour les AUTRES
+    socket.broadcast.emit('spawn', {
+        id: playerId,
+        username: username
+    });
         
         // ✅ CRUCIAL: Envoie TOUS les joueurs existants au NOUVEAU joueur
         for (let id in players) {
