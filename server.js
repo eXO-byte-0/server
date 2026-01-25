@@ -141,27 +141,45 @@ io.on('connection', (socket) => {
         console.log(`✅ ${username} prêt | Total: ${playerCount}`);
     });
     
-    // ========================================
-    // PROJECTILE CREATE
-    // ========================================
-    socket.on('projectileCreate', (data) => {
-        console.log(`🎯 PROJECTILE CREATE par ${data.ownerId}: ${data.id}`);
-        
-        // Vérifier que le propriétaire existe
-        if (!players[data.ownerId]) {
-            console.log(`⚠️  Propriétaire ${data.ownerId} non trouvé`);
-            return;
-        }
-        
-        // Stocker le projectile
-        projectiles[data.id] = {
-            id: data.id,
-            ownerId: data.ownerId,
-            type: data.type,
-            position: data.position,
-            velocity: data.velocity,
-            createdAt: Date.now()
-        };
+  // ========================================
+// PROJECTILE CREATE - CORRIGÉ
+// ========================================
+socket.on('projectileCreate', (data) => {
+    console.log(`🎯 PROJECTILE CREATE par ${data.ownerId}: ${data.id}`);
+    
+    // Vérifier que le propriétaire existe
+    if (!players[data.ownerId]) {
+        console.log(`⚠️  Propriétaire ${data.ownerId} non trouvé`);
+        return;
+    }
+    
+    // Stocker le projectile
+    projectiles[data.id] = {
+        id: data.id,
+        ownerId: data.ownerId,
+        type: data.type,
+        position: data.position,
+        velocity: data.velocity,
+        createdAt: Date.now()
+    };
+    
+    projectileCount++;
+    
+    // ⭐⭐ CORRECTION: Envoyer à TOUS les AUTRES joueurs (pas à l'émetteur)
+    socket.broadcast.emit('projectileCreated', {
+        id: data.id,
+        ownerId: data.ownerId,
+        type: data.type,
+        position: data.position,
+        velocity: data.velocity
+    });
+    
+    console.log(`✅ Projectile ${data.id} créé par ${players[data.ownerId].username}`);
+    console.log(`   → Diffusé à TOUS les autres joueurs (sauf ${data.ownerId})`);
+    
+    // Mettre à jour le compteur
+    io.emit('projectileCountUpdate', Object.keys(projectiles).length);
+});
         
         projectileCount++;
         
