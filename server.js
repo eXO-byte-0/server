@@ -237,6 +237,26 @@ io.on('connection', (socket) => {
     });
     
     // ========================================
+    // PLAYER SHOOT - SIMPLE
+    // ========================================
+    socket.on('playerShoot', (data) => {
+        console.log(`🔫 PLAYER SHOOT: ${data.playerId}`);
+        
+        // Vérifier que le joueur existe
+        if (!players[data.playerId]) {
+            console.log(`⚠️ Joueur ${data.playerId} non trouvé`);
+            return;
+        }
+        
+        // Broadcast à TOUS les autres joueurs
+        socket.broadcast.emit('playerShoot', {
+            playerId: data.playerId
+        });
+        
+        console.log(`✅ Tir diffusé pour ${players[data.playerId].username}`);
+    });
+    
+    // ========================================
     // TRANSFORM - Position + Rotation
     // ========================================
     socket.on('transform', (data) => {
