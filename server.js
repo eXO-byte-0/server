@@ -119,7 +119,8 @@ io.on('connection', (socket) => {
                 ownerId: projectile.ownerId,
                 type: projectile.type,
                 position: projectile.position,
-                velocity: projectile.velocity
+                velocity: projectile.velocity,
+                rotation: projectile.rotation // ⭐ AJOUTER LA ROTATION
             });
             console.log(`   → Envoyé projectile ${projectileId} à ${socket.id}`);
         }
@@ -140,10 +141,13 @@ io.on('connection', (socket) => {
     });
     
     // ========================================
-    // PROJECTILE CREATE - CORRIGÉ
+    // PROJECTILE CREATE - CORRIGÉ AVEC ROTATION
     // ========================================
     socket.on('projectileCreate', (data) => {
         console.log(`🎯 PROJECTILE CREATE par ${data.ownerId}: ${data.id}`);
+        console.log(`   Position:`, data.position);
+        console.log(`   Velocity:`, data.velocity);
+        console.log(`   Rotation:`, data.rotation); // ⭐ LOG
         
         // Vérifier que le propriétaire existe
         if (!players[data.ownerId]) {
@@ -157,13 +161,14 @@ io.on('connection', (socket) => {
             return;
         }
         
-        // Stocker le projectile
+        // Stocker le projectile AVEC LA ROTATION
         projectiles[data.id] = {
             id: data.id,
             ownerId: data.ownerId,
             type: data.type,
             position: data.position,
             velocity: data.velocity,
+            rotation: data.rotation, // ⭐ STOCKER LA ROTATION
             createdAt: Date.now()
         };
         
@@ -173,7 +178,8 @@ io.on('connection', (socket) => {
             ownerId: data.ownerId,
             type: data.type,
             position: data.position,
-            velocity: data.velocity
+            velocity: data.velocity,
+            rotation: data.rotation // ⭐ TRANSMETTRE LA ROTATION
         });
         
         console.log(`✅ Projectile ${data.id} créé par ${players[data.ownerId].username}`);
@@ -368,6 +374,7 @@ server.listen(PORT, '0.0.0.0', () => {
 ║   🌐 Port: ${PORT.toString().padEnd(39)} ║
 ║   ⏰ Démarrage: ${new Date().toLocaleTimeString().padEnd(33)} ║
 ║   🔫 Système de projectiles: ACTIVÉ             ║
+║   📐 Transmission: Position + Vélocité + Rotation║
 ║                                                  ║
 ╚══════════════════════════════════════════════════╝
     `);
