@@ -1,5 +1,5 @@
 // ============================================
-// SERVEUR MULTI-JOUEUR PLAYCANVAS - AVEC PROJECTILES
+// SERVEUR MULTI-JOUEUR PLAYCANVAS - PROJECTILES CORRIGÉ
 // ============================================
 
 const express = require('express');
@@ -19,9 +19,8 @@ const io = socketIo(server, {
 
 const PORT = process.env.PORT || 3000;
 let players = {};
-let projectiles = {}; // ← NOUVEAU: Stockage des projectiles
+let projectiles = {};
 let playerCount = 0;
-let projectileCount = 0;
 
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.json());
@@ -63,7 +62,7 @@ app.get('/health', (req, res) => {
 });
 
 // ============================================
-// SOCKET.IO - AVEC PROJECTILES
+// SOCKET.IO
 // ============================================
 
 io.on('connection', (socket) => {
@@ -75,7 +74,6 @@ io.on('connection', (socket) => {
     socket.on('create', () => {
         console.log(`📝 CREATE de ${socket.id}`);
         
-        // 1. Créer le joueur
         const username = `Player_${playerCount + 1}`;
         
         players[socket.id] = {
@@ -91,7 +89,7 @@ io.on('connection', (socket) => {
         
         console.log(`👤 Joueur créé: ${username} (${socket.id})`);
         
-        // 2. Envoyer TOUS les joueurs existants
+        // Envoyer REGISTER au nouveau joueur
         socket.emit('register', {
             id: socket.id,
             players: players
@@ -99,7 +97,7 @@ io.on('connection', (socket) => {
         
         console.log(`📤 REGISTER envoyé à ${socket.id}`);
         
-        // 3. Envoyer CHAQUE joueur existant au nouveau
+        // Envoyer CHAQUE joueur existant au nouveau
         for (let existingId in players) {
             if (existingId !== socket.id) {
                 socket.emit('playerJoined', {
@@ -113,7 +111,7 @@ io.on('connection', (socket) => {
             }
         }
         
-        // 4. Envoyer TOUS les projectiles existants au nouveau
+        // Envoyer TOUS les projectiles existants au nouveau
         for (let projectileId in projectiles) {
             const projectile = projectiles[projectileId];
             socket.emit('projectileCreated', {
@@ -126,7 +124,7 @@ io.on('connection', (socket) => {
             console.log(`   → Envoyé projectile ${projectileId} à ${socket.id}`);
         }
         
-        // 5. Annoncer le nouveau joueur à TOUS les autres
+        // Annoncer le nouveau joueur aux AUTRES
         socket.broadcast.emit('playerJoined', {
             id: socket.id,
             username: username,
@@ -135,55 +133,41 @@ io.on('connection', (socket) => {
             z: players[socket.id].z
         });
         
-        // 6. Mettre à jour les compteurs
+        // Mettre à jour les compteurs
         io.emit('playerCountUpdate', playerCount);
         
         console.log(`✅ ${username} prêt | Total: ${playerCount}`);
     });
     
-  // ========================================
-// PROJECTILE CREATE - CORRIGÉ
-// ========================================
-socket.on('projectileCreate', (data) => {
-    console.log(`🎯 PROJECTILE CREATE par ${data.ownerId}: ${data.id}`);
-    
-    // Vérifier que le propriétaire existe
-    if (!players[data.ownerId]) {
-        console.log(`⚠️  Propriétaire ${data.ownerId} non trouvé`);
-        return;
-    }
-    
-    // Stocker le projectile
-    projectiles[data.id] = {
-        id: data.id,
-        ownerId: data.ownerId,
-        type: data.type,
-        position: data.position,
-        velocity: data.velocity,
-        createdAt: Date.now()
-    };
-    
-    projectileCount++;
-    
-    // ⭐⭐ CORRECTION: Envoyer à TOUS les AUTRES joueurs (pas à l'émetteur)
-    socket.broadcast.emit('projectileCreated', {
-        id: data.id,
-        ownerId: data.ownerId,
-        type: data.type,
-        position: data.position,
-        velocity: data.velocity
-    });
-    
-    console.log(`✅ Projectile ${data.id} créé par ${players[data.ownerId].username}`);
-    console.log(`   → Diffusé à TOUS les autres joueurs (sauf ${data.ownerId})`);
-    
-    // Mettre à jour le compteur
-    io.emit('projectileCountUpdate', Object.keys(projectiles).length);
-});
+    // ========================================
+    // PROJECTILE CREATE - CORRIGÉ
+    // ========================================
+    socket.on('projectileCreate', (data) => {
+        console.log(`🎯 PROJECTILE CREATE par ${data.ownerId}: ${data.id}`);
         
-        projectileCount++;
+        // Vérifier que le propriétaire existe
+        if (!players[data.ownerId]) {
+            console.log(`⚠️ Propriétaire ${data.ownerId} non trouvé`);
+            return;
+        }
         
-        // Envoyer à TOUS les autres joueurs
+        // ⭐ Vérifier que le projectile n'existe pas déjà
+        if (projectiles[data.id]) {
+            console.log(`⚠️ Projectile ${data.id} existe déjà, ignoré`);
+            return;
+        }
+        
+        // Stocker le projectile
+        projectiles[data.id] = {
+            id: data.id,
+            ownerId: data.ownerId,
+            type: data.type,
+            position: data.position,
+            velocity: data.velocity,
+            createdAt: Date.now()
+        };
+        
+        // ⭐ CRITIQUE: Envoyer à TOUS les AUTRES joueurs (PAS à l'émetteur)
         socket.broadcast.emit('projectileCreated', {
             id: data.id,
             ownerId: data.ownerId,
@@ -192,29 +176,29 @@ socket.on('projectileCreate', (data) => {
             velocity: data.velocity
         });
         
+        console.log(`✅ Projectile ${data.id} créé par ${players[data.ownerId].username}`);
+        console.log(`   → Diffusé à tous SAUF ${data.ownerId}`);
+        
         // Mettre à jour le compteur
         io.emit('projectileCountUpdate', Object.keys(projectiles).length);
-        
-        console.log(`✅ Projectile ${data.id} créé par ${players[data.ownerId].username}`);
     });
     
     // ========================================
     // PROJECTILE DESTROY
     // ========================================
     socket.on('projectileDestroy', (data) => {
-        console.log(`🗑️  PROJECTILE DESTROY: ${data.id}`);
+        console.log(`🗑️ PROJECTILE DESTROY: ${data.id}`);
         
         // Vérifier que le projectile existe
         if (!projectiles[data.id]) {
-            console.log(`⚠️  Projectile ${data.id} non trouvé`);
+            console.log(`⚠️ Projectile ${data.id} non trouvé`);
             return;
         }
         
         // Supprimer le projectile
         delete projectiles[data.id];
-        projectileCount = Math.max(0, projectileCount - 1);
         
-        // Envoyer à TOUS les autres joueurs
+        // ⭐ Envoyer à TOUS les AUTRES joueurs
         socket.broadcast.emit('projectileDestroyed', {
             id: data.id
         });
@@ -233,11 +217,11 @@ socket.on('projectileCreate', (data) => {
         
         // Vérifier que les projectiles existent
         if (!projectiles[data.id1] || !projectiles[data.id2]) {
-            console.log(`⚠️  Un des projectiles n'existe pas`);
+            console.log(`⚠️ Un des projectiles n'existe pas`);
             return;
         }
         
-        // Envoyer à TOUS les joueurs (y compris l'émetteur)
+        // Envoyer à TOUS les joueurs (y compris l'émetteur pour sync)
         io.emit('projectileCollision', {
             id1: data.id1,
             id2: data.id2
@@ -303,12 +287,17 @@ socket.on('projectileCreate', (data) => {
             console.log(`🔴 Déconnexion: ${socket.id} (${username})`);
             
             // Supprimer TOUS les projectiles de ce joueur
+            let removedCount = 0;
             for (let projectileId in projectiles) {
                 if (projectiles[projectileId].ownerId === socket.id) {
                     delete projectiles[projectileId];
                     io.emit('projectileDestroyed', { id: projectileId });
-                    console.log(`   → Projectile ${projectileId} supprimé`);
+                    removedCount++;
                 }
+            }
+            
+            if (removedCount > 0) {
+                console.log(`   → ${removedCount} projectile(s) supprimé(s)`);
             }
             
             // Informer les autres du départ du joueur
@@ -327,7 +316,7 @@ socket.on('projectileCreate', (data) => {
     });
     
     // ========================================
-    // NETWORK PING (optionnel)
+    // NETWORK PING
     // ========================================
     socket.on('ping', () => {
         socket.emit('pong', { timestamp: Date.now() });
@@ -335,12 +324,14 @@ socket.on('projectileCreate', (data) => {
 });
 
 // ============================================
-// NETTOYAGE DES PROJECTILES EXPIÉS
+// NETTOYAGE DES PROJECTILES EXPIRÉS
 // ============================================
 
 function cleanupExpiredProjectiles() {
     const now = Date.now();
-    const expirationTime = 5000; // 5 secondes
+    const expirationTime = 10000; // 10 secondes
+    
+    let cleanedCount = 0;
     
     for (let projectileId in projectiles) {
         const projectile = projectiles[projectileId];
@@ -349,15 +340,18 @@ function cleanupExpiredProjectiles() {
             console.log(`🧹 Nettoyage projectile expiré: ${projectileId}`);
             delete projectiles[projectileId];
             io.emit('projectileDestroyed', { id: projectileId });
+            cleanedCount++;
         }
     }
     
-    // Nettoyer toutes les 30 secondes
-    setTimeout(cleanupExpiredProjectiles, 30000);
+    if (cleanedCount > 0) {
+        console.log(`🧹 ${cleanedCount} projectile(s) expiré(s) nettoyé(s)`);
+        io.emit('projectileCountUpdate', Object.keys(projectiles).length);
+    }
 }
 
-// Démarrer le nettoyage
-setTimeout(cleanupExpiredProjectiles, 30000);
+// Nettoyage toutes les 30 secondes
+setInterval(cleanupExpiredProjectiles, 30000);
 
 // ============================================
 // DÉMARRAGE
@@ -367,12 +361,12 @@ server.listen(PORT, '0.0.0.0', () => {
     console.log(`
 ╔══════════════════════════════════════════════════╗
 ║                                                  ║
-║   🚀 SERVEUR PLAYCANVAS - AVEC PROJECTILES      ║
+║   🚀 SERVEUR PLAYCANVAS - PROJECTILES OK        ║
 ║                                                  ║
 ╠══════════════════════════════════════════════════╣
 ║                                                  ║
-║   🌐 Port: ${PORT}                                  ║
-║   ⏰ Démarrage: ${new Date().toLocaleTimeString()}         ║
+║   🌐 Port: ${PORT.toString().padEnd(39)} ║
+║   ⏰ Démarrage: ${new Date().toLocaleTimeString().padEnd(33)} ║
 ║   🔫 Système de projectiles: ACTIVÉ             ║
 ║                                                  ║
 ╚══════════════════════════════════════════════════╝
