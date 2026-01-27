@@ -1,5 +1,5 @@
 // ============================================
-// SERVEUR MULTI-JOUEUR PLAYCANVAS - PROJECTILES CORRIGÉ
+// SERVEUR MULTI-JOUEUR PLAYCANVAS - AVEC GESTION DES ATTAQUES
 // ============================================
 
 const express = require('express');
@@ -82,7 +82,8 @@ io.on('connection', (socket) => {
             y: 1,
             z: Math.random() * 10 - 5,
             username: username,
-            connected: true
+            connected: true,
+            lastAttack: 0 // ⭐ NOUVEAU: timestamp de la dernière attaque
         };
         
         playerCount++;
@@ -120,7 +121,7 @@ io.on('connection', (socket) => {
                 type: projectile.type,
                 position: projectile.position,
                 velocity: projectile.velocity,
-                rotation: projectile.rotation // ⭐ AJOUTER LA ROTATION
+                rotation: projectile.rotation
             });
             console.log(`   → Envoyé projectile ${projectileId} à ${socket.id}`);
         }
@@ -141,13 +142,43 @@ io.on('connection', (socket) => {
     });
     
     // ========================================
-    // PROJECTILE CREATE - CORRIGÉ AVEC ROTATION
+    // PLAYER ATTACK - NOUVEAU ÉVÉNEMENT
+    // ========================================
+    socket.on('playerAttack', (data) => {
+        console.log(`⚔️ PLAYER ATTACK: ${data.playerId} (${players[data.playerId]?.username || 'Inconnu'})`);
+        
+        // Vérifier que le joueur existe
+        if (!players[data.playerId]) {
+            console.log(`⚠️ Joueur ${data.playerId} non trouvé`);
+            return;
+        }
+        
+        // Vérifier le cooldown d'attaque (ex: 500ms)
+        const now = Date.now();
+        if (now - players[data.playerId].lastAttack < 500) {
+            console.log(`⏳ Cooldown d'attaque pour ${players[data.playerId].username}`);
+            return;
+        }
+        
+        // Mettre à jour le timestamp de dernière attaque
+        players[data.playerId].lastAttack = now;
+        
+        // Broadcast à TOUS les autres joueurs
+        socket.broadcast.emit('playerAttack', {
+            playerId: data.playerId,
+            timestamp: data.timestamp || now,
+            position: data.position,
+            rotation: data.rotation
+        });
+        
+        console.log(`✅ Attaque diffusée pour ${players[data.playerId].username}`);
+    });
+    
+    // ========================================
+    // PROJECTILE CREATE
     // ========================================
     socket.on('projectileCreate', (data) => {
         console.log(`🎯 PROJECTILE CREATE par ${data.ownerId}: ${data.id}`);
-        console.log(`   Position:`, data.position);
-        console.log(`   Velocity:`, data.velocity);
-        console.log(`   Rotation:`, data.rotation); // ⭐ LOG
         
         // Vérifier que le propriétaire existe
         if (!players[data.ownerId]) {
@@ -155,31 +186,31 @@ io.on('connection', (socket) => {
             return;
         }
         
-        // ⭐ Vérifier que le projectile n'existe pas déjà
+        // Vérifier que le projectile n'existe pas déjà
         if (projectiles[data.id]) {
             console.log(`⚠️ Projectile ${data.id} existe déjà, ignoré`);
             return;
         }
         
-        // Stocker le projectile AVEC LA ROTATION
+        // Stocker le projectile
         projectiles[data.id] = {
             id: data.id,
             ownerId: data.ownerId,
             type: data.type,
             position: data.position,
             velocity: data.velocity,
-            rotation: data.rotation, // ⭐ STOCKER LA ROTATION
+            rotation: data.rotation,
             createdAt: Date.now()
         };
         
-        // ⭐ CRITIQUE: Envoyer à TOUS les AUTRES joueurs (PAS à l'émetteur)
+        // Envoyer à TOUS les AUTRES joueurs
         socket.broadcast.emit('projectileCreated', {
             id: data.id,
             ownerId: data.ownerId,
             type: data.type,
             position: data.position,
             velocity: data.velocity,
-            rotation: data.rotation // ⭐ TRANSMETTRE LA ROTATION
+            rotation: data.rotation
         });
         
         console.log(`✅ Projectile ${data.id} créé par ${players[data.ownerId].username}`);
@@ -204,7 +235,7 @@ io.on('connection', (socket) => {
         // Supprimer le projectile
         delete projectiles[data.id];
         
-        // ⭐ Envoyer à TOUS les AUTRES joueurs
+        // Envoyer à TOUS les AUTRES joueurs
         socket.broadcast.emit('projectileDestroyed', {
             id: data.id
         });
@@ -227,7 +258,7 @@ io.on('connection', (socket) => {
             return;
         }
         
-        // Envoyer à TOUS les joueurs (y compris l'émetteur pour sync)
+        // Envoyer à TOUS les joueurs
         io.emit('projectileCollision', {
             id1: data.id1,
             id2: data.id2
@@ -237,7 +268,7 @@ io.on('connection', (socket) => {
     });
     
     // ========================================
-    // PLAYER SHOOT - SIMPLE
+    // PLAYER SHOOT
     // ========================================
     socket.on('playerShoot', (data) => {
         console.log(`🔫 PLAYER SHOOT: ${data.playerId}`);
@@ -387,13 +418,14 @@ server.listen(PORT, '0.0.0.0', () => {
     console.log(`
 ╔══════════════════════════════════════════════════╗
 ║                                                  ║
-║   🚀 SERVEUR PLAYCANVAS - PROJECTILES OK        ║
+║   🚀 SERVEUR PLAYCANVAS - AVEC ATTAQUES         ║
 ║                                                  ║
 ╠══════════════════════════════════════════════════╣
 ║                                                  ║
 ║   🌐 Port: ${PORT.toString().padEnd(39)} ║
 ║   ⏰ Démarrage: ${new Date().toLocaleTimeString().padEnd(33)} ║
 ║   🔫 Système de projectiles: ACTIVÉ             ║
+║   ⚔️  Système d'attaques: ACTIVÉ                ║
 ║   📐 Transmission: Position + Vélocité + Rotation║
 ║                                                  ║
 ╚══════════════════════════════════════════════════╝
