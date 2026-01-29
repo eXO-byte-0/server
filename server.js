@@ -401,6 +401,27 @@ io.on('connection', (socket) => {
             console.log(`📊 Joueurs restants: ${playerCount} | Projectiles: ${Object.keys(projectiles).length}`);
         }
     });
+
+
+    // ========================================
+// PLAYER ATTACK
+// ========================================
+socket.on('playerAttack', (data) => {
+    console.log(`⚔️ PLAYER ATTACK: ${data.id}`);
+    
+    if (!players[data.id]) {
+        console.log(`⚠️ Joueur ${data.id} non trouvé`);
+        return;
+    }
+    
+    socket.broadcast.emit('playerAttack', {
+        id: data.id
+    });
+    
+    console.log(`✅ Attaque diffusée pour ${players[data.id].username}`);
+});
+
+
     
     // ========================================
     // NETWORK PING
