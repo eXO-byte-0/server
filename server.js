@@ -251,7 +251,9 @@ io.on('connection', (socket) => {
             type: data.type,
             position: data.position,
             velocity: data.velocity,
-            rotation: data.rotation
+            rotation: data.rotation,
+            disableGravityAfter: data.disableGravityAfter,
+            destructionDelay: data.destructionDelay
         });
         
         console.log(`✅ Projectile ${data.id} créé par ${players[data.ownerId].username}`);
